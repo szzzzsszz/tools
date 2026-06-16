@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>音程反应训练器</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#171a21;
+    --panel2:#1f232c;
+    --border:#2a2f3a;
+    --text:#e6e8ee;
+    --muted:#8a90a0;
+    --accent:#7c9cff;
+    --accent2:#5ac8a8;
+    --danger:#ff6b6b;
+    --good:#5ac8a8;
+    --warn:#ffb454;
+    --highlight:#ffd166;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+  body{min-height:100vh;display:flex;flex-direction:column;}
+  header{
+    padding:18px 22px;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  }
+  h1{font-size:18px;margin:0;letter-spacing:.5px;}
+  h1 span{color:var(--accent);}
+  .top-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px;}
+  .tab{
+    padding:8px 14px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--muted);
+    transition:all .15s;user-select:none;
+  }
+  .tab:hover{color:var(--text);}
+  .tab.active{background:var(--accent);color:#fff;}
+  select,button{
+    background:var(--panel);color:var(--text);border:1px solid var(--border);
+    border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;font-family:inherit;
+  }
+  select:hover,button:hover{border-color:var(--accent);}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  button.primary:hover{filter:brightness(1.1);}
+  main{flex:1;padding:24px 22px;max-width:1200px;width:100%;margin:0 auto;}
+  .score-bar{
+    display:flex;gap:24px;justify-content:center;margin-bottom:18px;
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 22px;
+    flex-wrap:wrap;
+  }
+  .score-item{display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .score-item .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .score-item .value{font-size:22px;font-weight:600;color:var(--text);}
+  .score-item .value.accent{color:var(--accent2);}
+  .score-item .value.combo{color:var(--highlight);}
+  .panel{
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;
+    margin-bottom:16px;
+  }
+  .prompt-area{
+    display:flex;flex-direction:column;align-items:center;gap:18px;min-height:200px;justify-content:center;
+  }
+  .prompt-big{font-size:48px;font-weight:300;letter-spacing:4px;text-align:center;}
+  .prompt-big .note{color:var(--accent);font-weight:500;}
+  .prompt-big .arrow{color:var(--muted);margin:0 18px;}
+  .prompt-sub{color:var(--muted);font-size:14px;}
+  .play-btn{
+    background:var(--accent);color:#fff;border:none;width:80px;height:80px;border-radius:50%;
+    font-size:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 16px rgba(124,156,255,.3);transition:transform .1s;
+  }
+  .play-btn:hover{transform:scale(1.05);}
+  .play-btn:active{transform:scale(.95);}
+  .interval-grid{
+    display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:18px;
+  }
+  .interval-btn{
+    background:var(--panel2);border:1px solid var(--border);border-radius:10px;
+    padding:14px 8px;cursor:pointer;text-align:center;transition:all .15s;
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .interval-btn:hover{border-color:var(--accent);background:#252a35;}
+  .interval-btn.correct{background:var(--good);border-color:var(--good);color:#fff;animation:pop .3s;}
+  .interval-btn.wrong{background:var(--danger);border-color:var(--danger);color:#fff;animation:shake .3s;}
+  .interval-btn.disabled{pointer-events:none;opacity:.5;}
+  .interval-btn .cn{font-size:14px;font-weight:600;}
+  .interval-btn .en{font-size:11px;color:var(--muted);}
+  .interval-btn.correct .en, .interval-btn.wrong .en{color:rgba(255,255,255,.8);}
+  @keyframes pop{0%{transform:scale(1);}50%{transform:scale(1.08);}100%{transform:scale(1);}}
+  @keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+
+  /* Fretboard */
+  .fretboard-wrap{width:100%;overflow-x:auto;padding:10px 0;}
+  svg.fretboard{display:block;margin:0 auto;}
+  .fret-bg{fill:#2a2018;}
+  .fret-line{stroke:#5a4a35;stroke-width:1.5;}
+  .nut{stroke:#d9d4cd;stroke-width:5;}
+  .string-line{stroke:#cdb98a;}
+  .fret-marker{fill:#5a4a35;}
+  .note-dot{fill:var(--accent);stroke:#fff;stroke-width:1.5;cursor:pointer;}
+  .note-dot.start{fill:var(--accent2);}
+  .note-dot.target{fill:var(--highlight);}
+  .note-dot.guess-correct{fill:var(--good);}
+  .note-dot.guess-wrong{fill:var(--danger);}
+  .note-label{fill:#fff;font-size:11px;font-weight:600;text-anchor:middle;dominant-baseline:central;pointer-events:none;}
+  .fret-num{fill:var(--muted);font-size:10px;text-anchor:middle;}
+  .clickable-zone{fill:transparent;cursor:pointer;}
+  .clickable-zone:hover{fill:rgba(124,156,255,.15);}
+
+  /* Stats modal */
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100;
+  }
+  .modal-bg.show{display:flex;}
+  .modal{
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    max-width:800px;width:92%;max-height:90vh;overflow-y:auto;padding:24px;
+  }
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .modal h2{margin:0;font-size:18px;}
+  .stat-row{
+    display:grid;grid-template-columns:120px 1fr 80px 80px 80px;gap:12px;align-items:center;
+    padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;
+  }
+  .stat-row.header{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px;border-bottom:2px solid var(--border);}
+  .stat-bar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;}
+  .stat-bar-fill{height:100%;background:var(--accent);transition:width .3s;}
+  .stat-bar-fill.low{background:var(--danger);}
+  .stat-bar-fill.mid{background:var(--warn);}
+  .stat-bar-fill.high{background:var(--good);}
+  .weak-list{
+    margin-top:18px;padding:14px;background:var(--panel2);border-radius:10px;
+  }
+  .weak-list h3{margin:0 0 10px 0;font-size:13px;color:var(--warn);}
+  .weak-tag{display:inline-block;background:var(--danger);color:#fff;padding:4px 10px;border-radius:6px;font-size:12px;margin:3px;}
+
+  .hint{color:var(--muted);font-size:13px;text-align:center;margin-top:8px;}
+  .feedback{
+    min-height:24px;text-align:center;font-size:14px;font-weight:600;margin-top:10px;
+  }
+  .feedback.good{color:var(--good);}
+  .feedback.bad{color:var(--danger);}
+
+  @media (max-width: 720px){
+    .interval-grid{grid-template-columns:repeat(3,1fr);}
+    .prompt-big{font-size:32px;}
+    .stat-row{grid-template-columns:90px 1fr 50px 50px 60px;font-size:11px;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎸 <span>音程反应训练器</span></h1>
+  <div class="top-controls">
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-mode="1">听觉</div>
+      <div class="tab" data-mode="2">音名</div>
+      <div class="tab" data-mode="3">指板识别</div>
+      <div class="tab" data-mode="4">反向定位</div>
+    </div>
+    <select id="difficulty">
+      <option value="1">难度 1 · 白键内</option>
+      <option value="2">难度 2 · 含升降号</option>
+      <option value="3" selected>难度 3 · 全随机</option>
+    </select>
+    <button id="statsBtn">📊 统计</button>
+  </div>
+</header>
+
+<main>
+  <div class="score-bar">
+    <div class="score-item"><div class="label">本次得分</div><div class="value accent" id="scoreVal">0</div></div>
+    <div class="score-item"><div class="label">连击</div><div class="value combo" id="comboVal">0</div></div>
+    <div class="score-item"><div class="label">本次正确率</div><div class="value" id="accVal">—</div></div>
+    <div class="score-item"><div class="label">平均反应</div><div class="value" id="avgVal">—</div></div>
+  </div>
+
+  <div class="panel" id="trainingPanel">
+    <!-- Dynamic content based on mode -->
+  </div>
+
+  <div class="feedback" id="feedback"></div>
+  <div class="hint" id="hint"></div>
+</main>
+
+<div class="modal-bg" id="statsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📊 累计统计（按音程）</h2>
+      <div>
+        <button id="resetStatsBtn">重置统计</button>
+        <button id="closeStatsBtn">关闭</button>
+      </div>
+    </div>
+    <div class="stat-row header">
+      <div>音程</div><div>正确率</div><div>尝试</div><div>正确</div><div>平均(ms)</div>
+    </div>
+    <div id="statsList"></div>
+    <div class="weak-list">
+      <h3>⚠️ 待加强（反应最慢的 3 个）</h3>
+      <div id="weakTags"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============== 数据 ==============
+const INTERVALS = [
+  {semi:1,  cn:"小二度",  en:"m2"},
+  {semi:2,  cn:"大二度",  en:"M2"},
+  {semi:3,  cn:"小三度",  en:"m3"},
+  {semi:4,  cn:"大三度",  en:"M3"},
+  {semi:5,  cn:"纯四度",  en:"P4"},
+  {semi:6,  cn:"三全音",  en:"TT"},
+  {semi:7,  cn:"纯五度",  en:"P5"},
+  {semi:8,  cn:"小六度",  en:"m6"},
+  {semi:9,  cn:"大六度",  en:"M6"},
+  {semi:10, cn:"小七度",  en:"m7"},
+  {semi:11, cn:"大七度",  en:"M7"},
+  {semi:12, cn:"纯八度",  en:"P8"},
+];
+// pitch class -> name (prefer sharp)
+const SHARP_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const FLAT_NAMES  = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
+
+// 难度对应可用 pitch classes
+const DIFF_POOLS = {
+  1: [0,2,4,5,7,9,11],       // C D E F G A B (白键)
+  2: [0,1,2,3,4,5,6,7,8,9,10,11],
+  3: [0,1,2,3,4,5,6,7,8,9,10,11],
+};
+
+// 吉他标准调弦 (从第6弦到第1弦) MIDI: E2=40, A2=45, D3=50, G3=55, B3=59, E4=64
+const STRINGS = [40,45,50,55,59,64]; // 索引0=6弦(最低)
+const NUM_FRETS = 24;
+
+// ============== 状态 ==============
+let mode = 1;
+let difficulty = 3;
+let currentQuestion = null;
+let questionStartTime = 0;
+let score = 0;
+let combo = 0;
+let sessionAttempts = 0;
+let sessionCorrect = 0;
+let sessionTimes = [];
+
+// 累计统计 from localStorage
+const STORAGE_KEY = "intervalTrainerStats_v1";
+let stats = loadStats();
+
+function loadStats(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  const init = {};
+  INTERVALS.forEach(i => init[i.semi] = {attempts:0,correct:0,totalTime:0});
+  return init;
+}
+function saveStats(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(stats)); }
+
+// ============== Audio ==============
+let audioCtx = null;
+function getCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+function midiToFreq(m){ return 440 * Math.pow(2,(m-69)/12); }
+function playNote(midi, when=0, duration=0.7){
+  const ctx = getCtx();
+  const t = ctx.currentTime + when;
+  // 简单的钢琴风格：三角波 + 衰减
+  const osc = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "triangle";
+  osc2.type = "sine";
+  osc.frequency.value = midiToFreq(midi);
+  osc2.frequency.value = midiToFreq(midi) * 2;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.35, t+0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t+duration);
+  const g2 = ctx.createGain();
+  g2.gain.value = 0.12;
+  osc.connect(gain); osc2.connect(g2); g2.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t); osc2.start(t);
+  osc.stop(t+duration+0.05); osc2.stop(t+duration+0.05);
+}
+function playSequence(midi1, midi2){
+  playNote(midi1, 0, 0.7);
+  playNote(midi2, 0.6, 0.7);
+  playNote(midi1, 1.4, 1.0);
+  playNote(midi2, 1.4, 1.0);
+}
+
+// ============== 工具 ==============
+function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function pitchClass(midi){ return ((midi%12)+12)%12; }
+function noteName(midi, useFlat=false){
+  const pc = pitchClass(midi);
+  return (useFlat?FLAT_NAMES:SHARP_NAMES)[pc];
+}
+function intervalBetween(midi1, midi2){
+  // 返回 1-12 半音差 (取绝对值, 不超过八度)
+  let d = Math.abs(midi2 - midi1);
+  while(d > 12) d -= 12;
+  if(d === 0) d = 12;
+  return d;
+}
+
+// ============== 出题 ==============
+function generateQuestionForMode(mode){
+  const pool = DIFF_POOLS[difficulty];
+  // 选音程: 1-12
+  const intervalSemi = rand(INTERVALS).semi;
+
+  if(mode === 1){
+    // 听觉: 选一个起始 MIDI 在 C3..C5 之间, 音名属于 pool
+    let m1;
+    do{ m1 = 48 + Math.floor(Math.random()*24); }while(!pool.includes(pitchClass(m1)));
+    let m2 = m1 + intervalSemi;
+    if(!pool.includes(pitchClass(m2))){
+      // 若目标音 pc 不在 pool, 改成向下
+      m2 = m1 - intervalSemi;
+      if(!pool.includes(pitchClass(m2))){
+        // 强行接受
+        m2 = m1 + intervalSemi;
+      }
+    }
+    return {mode:1, midi1:m1, midi2:m2, intervalSemi};
+  }
+
+  if(mode === 2){
+    // 音名: 强制两个音都不是 C
+    const poolNoC = pool.filter(p => p !== 0);
+    if(poolNoC.length < 2) return generateQuestionForMode(1);
+    const pc1 = rand(poolNoC);
+    let pc2 = (pc1 + intervalSemi) % 12;
+    if(pc2 === 0){
+      // 目标是 C, 换方向
+      pc2 = ((pc1 - intervalSemi) % 12 + 12) % 12;
+    }
+    if(pc2 === 0){
+      // 再不行就重新生成
+      return generateQuestionForMode(2);
+    }
+    const useFlat = Math.random() < 0.4;
+    return {mode:2, name1:(useFlat?FLAT_NAMES:SHARP_NAMES)[pc1], name2:(useFlat?FLAT_NAMES:SHARP_NAMES)[pc2], intervalSemi};
+  }
+
+  if(mode === 3){
+    // 指板: 在指板上随机两个位置
+    let str1, fret1, str2, fret2, m1, m2, tries=0;
+    while(true){
+      tries++;
+      str1 = Math.floor(Math.random()*6);
+      fret1 = Math.floor(Math.random()*(NUM_FRETS+1));
+      m1 = STRINGS[str1] + fret1;
+      if(!pool.includes(pitchClass(m1))){ if(tries<50) continue; }
+      str2 = Math.floor(Math.random()*6);
+      fret2 = Math.floor(Math.random()*(NUM_FRETS+1));
+      m2 = STRINGS[str2] + fret2;
+      const d = intervalBetween(m1,m2);
+      if(d === intervalSemi && pool.includes(pitchClass(m2))) break;
+      if(tries>200){
+        // 强行构造
+        str2 = str1; fret2 = fret1 + intervalSemi;
+        if(fret2 > NUM_FRETS){ fret2 = fret1 - intervalSemi; }
+        m2 = STRINGS[str2]+fret2;
+        break;
+      }
+    }
+    return {mode:3, str1, fret1, str2, fret2, midi1:m1, midi2:m2, intervalSemi};
+  }
+
+  if(mode === 4){
+    // 反向: 给一个起始位置 + 音程, 让用户在指板上点击目标
+    const str1 = Math.floor(Math.random()*6);
+    const fret1 = Math.floor(Math.random()*(NUM_FRETS-4)) + 2; // 避开极端品位
+    const m1 = STRINGS[str1] + fret1;
+    const direction = Math.random() < 0.5 ? 1 : -1;
+    const m2 = m1 + direction*intervalSemi;
+    // 收集所有指板上等于 m2 的位置 (按 pitch class + 八度 都对, 也允许同 pc 不同八度)
+    // 为简单起见: 接受目标 midi 等于 m2 或 m2 ± 12 等等 (pitch class 匹配)
+    const targetPC = pitchClass(m2);
+    return {mode:4, str1, fret1, midi1:m1, intervalSemi, direction, targetPC, targetMidi:m2};
+  }
+}
+
+// ============== 渲染 ==============
+function renderIntervalButtons(){
+  return `<div class="interval-grid" id="intervalBtns">
+    ${INTERVALS.map(i=>`
+      <div class="interval-btn" data-semi="${i.semi}">
+        <div class="cn">${i.cn}</div>
+        <div class="en">${i.en} · ${i.semi}st</div>
+      </div>
+    `).join("")}
+  </div>`;
+}
+
+function renderFretboard(opts){
+  // opts: {highlights: [{str,fret,cls,label}], clickable: bool, onClick}
+  const W = 900, H = 220;
+  const padL = 40, padR = 20, padT = 24, padB = 30;
+  const fbW = W - padL - padR;
+  const fbH = H - padT - padB;
+  const fretW = fbW / NUM_FRETS;
+  const stringGap = fbH / 5;
+
+  const markers = [3,5,7,9,15,17,19,21];
+  const dblMarkers = [12,24];
+
+  let svg = `<svg class="fretboard" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  // background
+  svg += `<rect class="fret-bg" x="${padL}" y="${padT}" width="${fbW}" height="${fbH}" rx="4"/>`;
+  // fret markers (dots)
+  // 整条品格标记：每根弦上都画点
+  markers.forEach(f=>{
+    if(f<=NUM_FRETS){
+      const cx = padL + (f-0.5)*fretW;
+      for(let s=0; s<6; s++){
+        const cy = padT + s*stringGap;
+        svg += `<circle class="fret-marker" cx="${cx}" cy="${cy}" r="4" fill="#5a4a35"/>`;
+      }
+    }
+  });
+  // 双点品位（12/24）：用更亮的颜色和稍大的半径视觉区分
+  dblMarkers.forEach(f=>{
+    if(f<=NUM_FRETS){
+      const cx = padL + (f-0.5)*fretW;
+      for(let s=0; s<6; s++){
+        const cy = padT + s*stringGap;
+        svg += `<circle class="fret-marker" cx="${cx}" cy="${cy}" r="5" fill="#8a7548"/>`;
+      }
+    }
+  });
+  // fret lines
+  for(let f=0;f<=NUM_FRETS;f++){
+    const x = padL + f*fretW;
+    if(f===0){
+      svg += `<line class="nut" x1="${x}" y1="${padT-2}" x2="${x}" y2="${padT+fbH+2}"/>`;
+    }else{
+      svg += `<line class="fret-line" x1="${x}" y1="${padT}" x2="${x}" y2="${padT+fbH}"/>`;
+    }
+    if(f>0){
+      svg += `<text class="fret-num" x="${padL+(f-0.5)*fretW}" y="${H-8}">${f}</text>`;
+    }
+  }
+  // strings (6th string on top visually = lowest pitch? 通常吉他图把高音弦E画在上面)
+  // 我们使用: visually top = 1弦(最高E), bottom = 6弦(最低E)
+  // 数据中 STRINGS[0]=6弦, 所以渲染时反转
+  for(let s=0;s<6;s++){
+    const y = padT + s*stringGap;
+    svg += `<line class="string-line" x1="${padL}" y1="${y}" x2="${padL+fbW}" y2="${y}" stroke-width="${1 + (s)*0.3}"/>`;
+  }
+  // clickable zones (for mode 4)
+  if(opts.clickable){
+    for(let visS=0; visS<6; visS++){
+      const strIdx = 5 - visS; // 视觉0=1弦=STRINGS[5]
+      for(let f=0; f<=NUM_FRETS; f++){
+        const cx = f===0 ? padL-15 : padL + (f-0.5)*fretW;
+        const cy = padT + visS*stringGap;
+        svg += `<rect class="clickable-zone" data-str="${strIdx}" data-fret="${f}"
+                 x="${cx-fretW/2}" y="${cy-stringGap/2}" width="${fretW}" height="${stringGap}"/>`;
+      }
+    }
+  }
+  // highlights
+  (opts.highlights||[]).forEach(h=>{
+    const visS = 5 - h.str;
+    const cx = h.fret===0 ? padL-15 : padL + (h.fret-0.5)*fretW;
+    const cy = padT + visS*stringGap;
+    svg += `<circle class="note-dot ${h.cls||""}" cx="${cx}" cy="${cy}" r="14"/>`;
+    if(h.label){
+      svg += `<text class="note-label" x="${cx}" y="${cy}">${h.label}</text>`;
+    }
+  });
+  svg += `</svg>`;
+  return svg;
+}
+
+// ============== 模式 UI ==============
+function renderMode(){
+  const panel = document.getElementById("trainingPanel");
+  currentQuestion = generateQuestionForMode(mode);
+  questionStartTime = performance.now();
+
+  if(mode === 1){
+    panel.innerHTML = `
+      <div class="prompt-area">
+        <div class="prompt-sub">点击播放，听辨两个音之间的音程</div>
+        <button class="play-btn" id="playBtn">▶</button>
+        <div class="prompt-sub">可多次播放</div>
+      </div>
+      ${renderIntervalButtons()}
+    `;
+    document.getElementById("playBtn").onclick = ()=>{
+      playSequence(currentQuestion.midi1, currentQuestion.midi2);
+    };
+    // 自动播放一次
+    setTimeout(()=>playSequence(currentQuestion.midi1, currentQuestion.midi2), 200);
+  }
+
+  if(mode === 2){
+    const q = currentQuestion;
+    panel.innerHTML = `
+      <div class="prompt-area">
+        <div class="prompt-sub">这两个音的音程是？（注意：故意避开了 C，逼你脱离 C 的参照系）</div>
+        <div class="prompt-big">
+          <span class="note">${q.name1}</span>
+          <span class="arrow">→</span>
+          <span class="note">${q.name2}</span>
+        </div>
+      </div>
+      ${renderIntervalButtons()}
+    `;
+  }
+
+  if(mode === 3){
+    const q = currentQuestion;
+    panel.innerHTML = `
+      <div class="prompt-area">
+        <div class="prompt-sub">指板上高亮的两个音之间的音程是？</div>
+        <div class="fretboard-wrap">
+          ${renderFretboard({
+            highlights:[
+              {str:q.str1, fret:q.fret1, cls:"", label:"1"},
+              {str:q.str2, fret:q.fret2, cls:"target", label:"2"},
+            ]
+          })}
+        </div>
+      </div>
+      ${renderIntervalButtons()}
+    `;
+  }
+
+  if(mode === 4){
+    const q = currentQuestion;
+    const intName = INTERVALS.find(i=>i.semi===q.intervalSemi);
+    const dirText = q.direction>0 ? "向高音方向" : "向低音方向";
+    panel.innerHTML = `
+      <div class="prompt-area">
+        <div class="prompt-sub">从绿色音 <strong>${dirText}</strong> 走一个 <strong style="color:var(--highlight)">${intName.cn} (${intName.en})</strong>，请在指板上点击目标音</div>
+        <div class="fretboard-wrap">
+          ${renderFretboard({
+            highlights:[
+              {str:q.str1, fret:q.fret1, cls:"start", label:noteName(q.midi1)},
+            ],
+            clickable: true
+          })}
+        </div>
+        <div class="prompt-sub">提示：同一个音名在指板上可能有多个位置，任何一个正确位置都算对</div>
+      </div>
+    `;
+    panel.querySelectorAll(".clickable-zone").forEach(zone=>{
+      zone.onclick = ()=>{
+        const s = parseInt(zone.dataset.str);
+        const f = parseInt(zone.dataset.fret);
+        const m = STRINGS[s]+f;
+        const correct = pitchClass(m) === q.targetPC;
+        handleAnswer(correct, q.intervalSemi, {clickedStr:s, clickedFret:f, correct});
+      };
+    });
+  }
+
+  // bind interval buttons
+  if(mode !== 4){
+    panel.querySelectorAll(".interval-btn").forEach(btn=>{
+      btn.onclick = ()=>{
+        const semi = parseInt(btn.dataset.semi);
+        const correct = semi === currentQuestion.intervalSemi;
+        handleAnswer(correct, currentQuestion.intervalSemi, {clickedBtn:btn});
+      };
+    });
+  }
+}
+
+// ============== 答题处理 ==============
+function handleAnswer(correct, correctSemi, ctx){
+  const elapsed = performance.now() - questionStartTime;
+  sessionAttempts++;
+  if(correct){ sessionCorrect++; combo++; score += 10 + Math.min(combo*2, 30); }
+  else { combo = 0; }
+  sessionTimes.push(elapsed);
+
+  // 更新累计统计
+  if(!stats[correctSemi]) stats[correctSemi] = {attempts:0,correct:0,totalTime:0};
+  stats[correctSemi].attempts++;
+  if(correct){
+    stats[correctSemi].correct++;
+    stats[correctSemi].totalTime += elapsed;
+  }
+  saveStats();
+
+  // 视觉反馈
+  const fb = document.getElementById("feedback");
+  const correctInt = INTERVALS.find(i=>i.semi===correctSemi);
+  if(correct){
+    fb.textContent = `✓ 正确！${correctInt.cn} (${correctInt.en}) · ${(elapsed/1000).toFixed(2)}s`;
+    fb.className = "feedback good";
+  }else{
+    fb.textContent = `✗ 答案是 ${correctInt.cn} (${correctInt.en})`;
+    fb.className = "feedback bad";
+  }
+
+  // 在按钮上 / 指板上标记
+  if(mode === 4){
+    const q = currentQuestion;
+    const panel = document.getElementById("trainingPanel");
+    const cls = correct ? "guess-correct" : "guess-wrong";
+    const highlights = [
+      {str:q.str1, fret:q.fret1, cls:"start", label:noteName(q.midi1)},
+      {str:ctx.clickedStr, fret:ctx.clickedFret, cls:cls, label:noteName(STRINGS[ctx.clickedStr]+ctx.clickedFret)}
+    ];
+    // 如果答错，再标出一个正确答案的示例
+    if(!correct){
+      // 找到一个最近的目标位置
+      let best = null, bestDist = Infinity;
+      for(let s=0;s<6;s++){
+        for(let f=0;f<=NUM_FRETS;f++){
+          if(pitchClass(STRINGS[s]+f) === q.targetPC){
+            const d = Math.abs(s-ctx.clickedStr) + Math.abs(f-ctx.clickedFret);
+            if(d<bestDist){ bestDist=d; best={s,f}; }
+          }
+        }
+      }
+      if(best) highlights.push({str:best.s, fret:best.f, cls:"target", label:noteName(STRINGS[best.s]+best.f)});
+    }
+    panel.querySelector(".fretboard-wrap").innerHTML = renderFretboard({highlights});
+    panel.querySelectorAll(".clickable-zone").forEach(z=>z.style.pointerEvents="none");
+  }else{
+    document.querySelectorAll(".interval-btn").forEach(b=>{
+      b.classList.add("disabled");
+      if(parseInt(b.dataset.semi) === correctSemi) b.classList.add("correct");
+      else if(b === ctx.clickedBtn) b.classList.add("wrong");
+    });
+  }
+
+  updateScoreBar();
+
+  // 自动进入下一题
+  setTimeout(()=>{
+    document.getElementById("feedback").textContent = "";
+    renderMode();
+  }, correct ? 1100 : 1800);
+}
+
+function updateScoreBar(){
+  document.getElementById("scoreVal").textContent = score;
+  document.getElementById("comboVal").textContent = combo;
+  const acc = sessionAttempts>0 ? Math.round(sessionCorrect/sessionAttempts*100) : null;
+  document.getElementById("accVal").textContent = acc===null ? "—" : acc+"%";
+  const avg = sessionTimes.length>0 ? (sessionTimes.reduce((a,b)=>a+b,0)/sessionTimes.length/1000).toFixed(2)+"s" : "—";
+  document.getElementById("avgVal").textContent = avg;
+}
+
+// ============== 统计弹窗 ==============
+function renderStats(){
+  const list = document.getElementById("statsList");
+  list.innerHTML = "";
+  INTERVALS.forEach(it=>{
+    const s = stats[it.semi] || {attempts:0,correct:0,totalTime:0};
+    const acc = s.attempts>0 ? s.correct/s.attempts : 0;
+    const avgMs = s.correct>0 ? Math.round(s.totalTime/s.correct) : 0;
+    const accCls = acc<0.5 ? "low" : acc<0.8 ? "mid" : "high";
+    list.innerHTML += `
+      <div class="stat-row">
+        <div><strong>${it.cn}</strong><br><span style="color:var(--muted);font-size:11px">${it.en}</span></div>
+        <div class="stat-bar"><div class="stat-bar-fill ${accCls}" style="width:${acc*100}%"></div></div>
+        <div>${s.attempts}</div>
+        <div>${s.correct}</div>
+        <div>${avgMs || "—"}</div>
+      </div>
+    `;
+  });
+  // weak list: 平均反应时间最慢的 3 个（至少 attempts > 2）
+  const valid = INTERVALS.map(it=>{
+    const s = stats[it.semi]||{};
+    return {it, avg: s.correct>2 ? s.totalTime/s.correct : -1};
+  }).filter(x=>x.avg>0).sort((a,b)=>b.avg-a.avg).slice(0,3);
+  const tags = document.getElementById("weakTags");
+  if(valid.length===0){
+    tags.innerHTML = `<span style="color:var(--muted);font-size:13px">数据不足，再多练几题就有了～</span>`;
+  }else{
+    tags.innerHTML = valid.map(v=>`<span class="weak-tag">${v.it.cn} (${(v.avg/1000).toFixed(2)}s)</span>`).join("");
+  }
+}
+
+// ============== 事件 ==============
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    mode = parseInt(t.dataset.mode);
+    // 重置 session
+    score = 0; combo = 0; sessionAttempts = 0; sessionCorrect = 0; sessionTimes = [];
+    updateScoreBar();
+    document.getElementById("feedback").textContent = "";
+    renderMode();
+  };
+});
+document.getElementById("difficulty").onchange = (e)=>{
+  difficulty = parseInt(e.target.value);
+  renderMode();
+};
+document.getElementById("statsBtn").onclick = ()=>{
+  renderStats();
+  document.getElementById("statsModal").classList.add("show");
+};
+document.getElementById("closeStatsBtn").onclick = ()=>{
+  document.getElementById("statsModal").classList.remove("show");
+};
+document.getElementById("resetStatsBtn").onclick = ()=>{
+  if(confirm("确定要清空所有累计统计吗？")){
+    stats = {};
+    INTERVALS.forEach(i => stats[i.semi] = {attempts:0,correct:0,totalTime:0});
+    saveStats();
+    renderStats();
+  }
+};
+
+// 初始化
+renderMode();
+updateScoreBar();
+document.getElementById("hint").textContent = "提示：模式 1 需要浏览器音频权限，第一次点击「播放」即会激活";
+</script>
+</body>
+</html>
